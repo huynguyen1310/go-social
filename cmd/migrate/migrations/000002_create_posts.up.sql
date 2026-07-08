@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS posts (
     content text NOT NULL,
     user_id bigint NOT NULL,
     FOREIGN KEY (user_id) REFERENCES users(id),
+    tags text[] NOT NULL,
     created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
