@@ -1,0 +1,1 @@
+ALTER TABLE users ADD COLUMN IF NOT EXISTS username varchar(255) NOT NULL DEFAULT '';
