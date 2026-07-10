@@ -28,3 +28,8 @@ func (app *application) notFoundError(w http.ResponseWriter, r *http.Request, er
 
 	writeJSONError(w, http.StatusNotFound, err.Error())
 }
+
+func (app *application) badRequestResponse(w http.ResponseWriter, r *http.Request, err error) {
+	log.Printf("bad request error: %s path: %s error: %s", r.Method, r.URL.Path, err.Error())
+	writeJSONError(w, http.StatusBadRequest, err.Error())
+}

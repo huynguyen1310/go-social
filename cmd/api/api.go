@@ -7,7 +7,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/huynguyen1310/social/docs"
 	"github.com/huynguyen1310/social/internal/store"
+	httpSwagger "github.com/swaggo/http-swagger"
 )
 
 type application struct {
@@ -16,8 +18,9 @@ type application struct {
 }
 
 type config struct {
-	addr string
-	db   dbConfig
+	addr   string
+	db     dbConfig
+	apiURL string
 }
 
 type dbConfig struct {
@@ -43,6 +46,7 @@ func (app *application) mount() http.Handler {
 	r.Route("/v1", func(r chi.Router) {
 		r.Get("/health", app.healthHandler)
 
+		r.Get("/swagger/*", httpSwagger.Handler())
 		r.Route("/posts", func(r chi.Router) {
 			r.Post("/", app.createPostHandler)
 
@@ -56,16 +60,18 @@ func (app *application) mount() http.Handler {
 		})
 
 		r.Route("/users", func(r chi.Router) {
+			// /feeds must be registered BEFORE /{userID} so chi doesn't
+			// match "feeds" as a userID parameter and fail to parse it as int64.
+			r.Group(func(r chi.Router) {
+				r.Get("/feeds", app.getUserFeedHandler)
+			})
+
 			r.Route("/{userID}", func(r chi.Router) {
 				r.Use(app.userContextMiddleware)
 
 				r.Get("/", app.getUserHandler)
 				r.Put("/follow", app.followUserHandler)
 				r.Put("/unfollow", app.unfollowUserHandler)
-			})
-
-			r.Group(func(r chi.Router) {
-				r.Get("/feeds", app.getUserFeedHandler)
 			})
 		})
 	})
@@ -74,10 +80,15 @@ func (app *application) mount() http.Handler {
 
 }
 
-func (app *application) serve(http.Handler) error {
+func (app *application) serve(mux http.Handler) error {
+	// Docs
+	docs.SwaggerInfo.Version = version
+	docs.SwaggerInfo.Host = app.config.apiURL
+	docs.SwaggerInfo.BasePath = "/v1"
+
 	server := &http.Server{
 		Addr:         app.config.addr,
-		Handler:      app.mount(),
+		Handler:      mux,
 		WriteTimeout: time.Second * 30,
 		ReadTimeout:  time.Second * 10,
 		IdleTimeout:  time.Minute,

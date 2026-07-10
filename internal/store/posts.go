@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"strings"
 
 	"github.com/lib/pq"
 )
@@ -150,7 +152,15 @@ func (s *PostStore) Update(ctx context.Context, post *Post) error {
 	return nil
 }
 
-func (s *PostStore) GetUserFeed(ctx context.Context, userId int64) ([]*PostWithMetadata, error) {
+func (s *PostStore) GetUserFeed(ctx context.Context, userId int64, fq PaginationFeedQuery) ([]*PostWithMetadata, error) {
+	sortDir := "DESC"
+	if fq.Sort == "asc" || fq.Sort == "ASC" {
+		sortDir = "ASC"
+	}
+
+	args := []any{userId}
+	paramIdx := 2
+
 	query := `
 	SELECT
 		p.id, p.user_id, p.title, p.content, p.created_at, p.version, p.tags,
@@ -160,10 +170,47 @@ func (s *PostStore) GetUserFeed(ctx context.Context, userId int64) ([]*PostWithM
 	LEFT JOIN comments c ON c.post_id = p.id
 	LEFT JOIN users u ON p.user_id = u.id
 	JOIN followers f ON f.follower_id = p.user_id OR p.user_id = $1
-	WHERE f.user_id = $1 OR p.user_id = $1
+	WHERE (f.user_id = $1 OR p.user_id = $1)`
+
+	// Tags filter — comma-separated list, match any
+	if fq.Tags != "" {
+		tags := strings.Split(fq.Tags, ",")
+		tagParams := make([]string, 0, len(tags))
+		for _, tag := range tags {
+			tagParams = append(tagParams, fmt.Sprintf("$%d", paramIdx))
+			args = append(args, strings.TrimSpace(tag))
+			paramIdx++
+		}
+		query += fmt.Sprintf(" AND p.tags @> ARRAY[%s]::text[]", strings.Join(tagParams, ", "))
+	}
+
+	// Search filter — matches title OR content
+	if fq.Search != "" {
+		query += fmt.Sprintf(" AND (p.title ILIKE '%%%%' || $%d || '%%%%' OR p.content ILIKE '%%%%' || $%d || '%%%%')", paramIdx, paramIdx)
+		args = append(args, fq.Search)
+		paramIdx++
+	}
+
+	// Since filter — posts created after this date
+	if fq.Since != "" {
+		query += fmt.Sprintf(" AND p.created_at >= $%d", paramIdx)
+		args = append(args, fq.Since)
+		paramIdx++
+	}
+
+	// Until filter — posts created before this date
+	if fq.Until != "" {
+		query += fmt.Sprintf(" AND p.created_at <= $%d", paramIdx)
+		args = append(args, fq.Until)
+		paramIdx++
+	}
+
+	query += fmt.Sprintf(`
 	GROUP BY p.id, u.username
-	ORDER BY p.created_at DESC
-	`
+	ORDER BY p.created_at %s
+	LIMIT $%d OFFSET $%d`, sortDir, paramIdx, paramIdx+1)
+
+	args = append(args, fq.Limit, fq.Offset)
 
 	ctx, cancel := context.WithTimeout(ctx, QueryTimeoutDuration)
 	defer cancel()
@@ -171,7 +218,7 @@ func (s *PostStore) GetUserFeed(ctx context.Context, userId int64) ([]*PostWithM
 	rows, err := s.db.QueryContext(
 		ctx,
 		query,
-		userId,
+		args...,
 	)
 
 	if err != nil {

@@ -10,6 +10,19 @@ import (
 	"github.com/huynguyen1310/social/internal/store"
 )
 
+// getUserHandler returns a user by ID
+//
+//	@Summary		Get user by ID
+//	@Description	Get a specific user by their ID
+//	@Tags			users
+//	@Accept			json
+//	@Produce		json
+//	@Param			userID	path		int	true	"User ID"
+//	@Success		200		{object}	store.User
+//	@Failure		400		{object}	error
+//	@Failure		404		{object}	error
+//	@Failure		500		{object}	error
+//	@Router			/users/{userID} [get]
 func (app *application) getUserHandler(w http.ResponseWriter, r *http.Request) {
 	userID := app.getUserFromCtx(r).ID
 
@@ -30,6 +43,17 @@ func (app *application) getUserHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
+// followUserHandler follows a user
+//
+//	@Summary		Follow a user
+//	@Description	Follow another user by their ID
+//	@Tags			users
+//	@Produce		json
+//	@Param			userID	path		int	true	"User ID to follow"
+//	@Success		200		{object}	map[string]interface{}
+//	@Failure		409		{object}	error
+//	@Failure		500		{object}	error
+//	@Router			/users/{userID}/follow [put]
 func (app *application) followUserHandler(w http.ResponseWriter, r *http.Request) {
 	followerID := app.getUserFromCtx(r).ID
 	userID := int64(13)
@@ -50,6 +74,17 @@ func (app *application) followUserHandler(w http.ResponseWriter, r *http.Request
 
 }
 
+// unfollowUserHandler unfollows a user
+//
+//	@Summary		Unfollow a user
+//	@Description	Unfollow another user by their ID
+//	@Tags			users
+//	@Produce		json
+//	@Param			userID	path		int	true	"User ID to unfollow"
+//	@Success		200		{object}	map[string]interface{}
+//	@Failure		404		{object}	error
+//	@Failure		500		{object}	error
+//	@Router			/users/{userID}/unfollow [put]
 func (app *application) unfollowUserHandler(w http.ResponseWriter, r *http.Request) {
 	followerID := app.getUserFromCtx(r).ID
 	userID := int64(13)

@@ -48,3 +48,6 @@ seed:
 # allows passing extra args like: make migrate-down 2
 %:
 	@:
+
+gen-docs:
+	@swag init -g ./api/main.go -d cmd,internal && swag fmt
