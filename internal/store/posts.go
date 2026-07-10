@@ -24,6 +24,12 @@ type PostStore struct {
 	db *sql.DB
 }
 
+type PostWithMetadata struct {
+	Post
+	CommentCount int    `json:"comment_count"`
+	Username     string `json:"username"`
+}
+
 func (s *PostStore) Create(ctx context.Context, post *Post) error {
 	query := `INSERT INTO posts (title, content, user_id, tags)
     VALUES ($1, $2, $3, $4) RETURNING id, created_at, updated_at`
@@ -142,4 +148,60 @@ func (s *PostStore) Update(ctx context.Context, post *Post) error {
 	}
 
 	return nil
+}
+
+func (s *PostStore) GetUserFeed(ctx context.Context, userId int64) ([]*PostWithMetadata, error) {
+	query := `
+	SELECT
+		p.id, p.user_id, p.title, p.content, p.created_at, p.version, p.tags,
+		u.username,
+		COUNT(c.id) AS comments_count
+	FROM posts p
+	LEFT JOIN comments c ON c.post_id = p.id
+	LEFT JOIN users u ON p.user_id = u.id
+	JOIN followers f ON f.follower_id = p.user_id OR p.user_id = $1
+	WHERE f.user_id = $1 OR p.user_id = $1
+	GROUP BY p.id, u.username
+	ORDER BY p.created_at DESC
+	`
+
+	ctx, cancel := context.WithTimeout(ctx, QueryTimeoutDuration)
+	defer cancel()
+
+	rows, err := s.db.QueryContext(
+		ctx,
+		query,
+		userId,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	var feeds []*PostWithMetadata
+	for rows.Next() {
+		var post PostWithMetadata
+		if err := rows.Scan(
+			&post.ID,
+			&post.UserId,
+			&post.Title,
+			&post.Content,
+			&post.CreatedAt,
+			&post.Version,
+			pq.Array(&post.Tags),
+			&post.Username,
+			&post.CommentCount,
+		); err != nil {
+			return nil, err
+		}
+		feeds = append(feeds, &post)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return feeds, nil
 }
