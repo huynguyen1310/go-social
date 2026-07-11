@@ -2,10 +2,12 @@ package main
 
 import (
 	"log"
+	"time"
 
 	"github.com/huynguyen1310/social/internal/db"
 	"github.com/huynguyen1310/social/internal/env"
 	"github.com/huynguyen1310/social/internal/store"
+	"go.uber.org/zap"
 
 	"github.com/joho/godotenv"
 )
@@ -44,7 +46,13 @@ func main() {
 			maxIdleConns: env.GetInt("DB_MAX_IDLE_CONNS", 5),
 			maxIdleTime:  env.GetString("DB_MAX_IDLE_TIME", "15m"),
 		},
+		mail: mailConfig{
+			exp: time.Hour * 24 * 3,
+		},
 	}
+
+	logger := zap.Must(zap.NewProduction()).Sugar()
+	defer logger.Sync()
 
 	db, err := db.New(
 		config.db.addr,
@@ -53,7 +61,7 @@ func main() {
 		config.db.maxIdleTime,
 	)
 	if err != nil {
-		log.Fatal(err)
+		logger.Fatal(err)
 	}
 
 	store := store.NewStorage(db)
@@ -61,11 +69,12 @@ func main() {
 	app := &application{
 		config: config,
 		store:  store,
+		logger: logger,
 	}
 
 	defer db.Close()
-	log.Println("DB connect established")
+	logger.Info("DB connect established")
 
 	mux := app.mount()
-	log.Fatal(app.serve(mux))
+	logger.Fatal(app.serve(mux))
 }

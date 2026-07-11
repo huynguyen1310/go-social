@@ -13,7 +13,7 @@ func Seed(store store.Storage) error {
 
 	users := generateUsers(100)
 	for _, user := range users {
-		if err := store.Users.Create(ctx, user); err != nil {
+		if err := store.Users.Create(ctx, nil, user); err != nil {
 			return err
 		}
 	}
@@ -39,11 +39,12 @@ func Seed(store store.Storage) error {
 func generateUsers(n int) []*store.User {
 	users := make([]*store.User, n)
 	for i := range users {
-		users[i] = &store.User{
+		user := &store.User{
 			Username: fmt.Sprintf("user%d", i+1),
 			Email:    fmt.Sprintf("user%d@example.com", i+1),
-			Password: fmt.Sprintf("password%d", i+1),
 		}
+		user.Password.Set("password")
+		users[i] = user
 	}
 	return users
 }

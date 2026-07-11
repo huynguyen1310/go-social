@@ -1,0 +1,115 @@
+package main
+
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"net/http"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
+	"github.com/huynguyen1310/social/internal/store"
+)
+
+type RegisterRequest struct {
+	Username string `json:"username" validate:"required,max=255"`
+	Email    string `json:"email" validate:"required,email,max=255"`
+	Password string `json:"password" validate:"required,min=3,max=72"`
+}
+
+type UserWithToken struct {
+	*store.User
+	Token string `json:"token"`
+}
+
+// registerUserHandler creates a new user account
+//
+//	@Summary		Register a new user
+//	@Description	Create a new user account with username, email, and password. An invitation token is generated for email verification.
+//	@Tags			auth
+//	@Accept			json
+//	@Produce		json
+//	@Param			user	body		RegisterRequest	true	"User registration details"
+//
+//	@Success		201		{object}	UserWithToken
+//
+//	@Failure		400		{object}	error
+//	@Failure		409		{object}	error
+//	@Failure		500		{object}	error
+//	@Router			/auth/register [post]
+func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Request) {
+	var payload RegisterRequest
+
+	if err := readJSON(w, r, &payload); err != nil {
+		app.badRequestError(w, r, err)
+		return
+	}
+
+	if err := Validate.Struct(payload); err != nil {
+		app.badRequestError(w, r, err)
+		return
+	}
+
+	user := store.User{
+		Username: payload.Username,
+		Email:    payload.Email,
+	}
+
+	if err := user.Password.Set(payload.Password); err != nil {
+		app.badRequestError(w, r, err)
+		return
+	}
+
+	plainToken := uuid.New().String()
+	hash := sha256.Sum256([]byte(plainToken))
+	hashedToken := hex.EncodeToString(hash[:])
+
+	ctx := r.Context()
+	if err := app.store.Users.CreateAndInvite(ctx, &user, hashedToken, app.config.mail.exp); err != nil {
+		switch err {
+		case store.ErrDuplicateEmail, store.ErrDuplicateUsername:
+			app.badRequestError(w, r, err)
+		default:
+			app.internalServerError(w, r, err)
+		}
+		return
+	}
+
+	userWithToken := UserWithToken{
+		User:  &user,
+		Token: plainToken,
+	}
+
+	if err := app.jsonResponse(w, http.StatusCreated, userWithToken); err != nil {
+		app.internalServerError(w, r, err)
+	}
+}
+
+// activateUserHandler activates a user account by invitation token
+//
+//	@Summary		Activate user account
+//	@Description	Activate a user account using the invitation token received via email
+//	@Tags			auth
+//	@Produce		json
+//	@Param			token	path		string	true	"Invitation token"
+//	@Success		200		{object}	map[string]interface{}
+//	@Failure		404		{object}	error
+//	@Failure		500		{object}	error
+//	@Router			/users/activate/{token} [put]
+func (app *application) activateUserHandler(w http.ResponseWriter, r *http.Request) {
+	token := chi.URLParam(r, "token")
+
+	err := app.store.Users.Activate(r.Context(), token)
+	if err != nil {
+		switch err {
+		case store.ErrNotFound:
+			app.badRequestError(w, r, err)
+		default:
+			app.internalServerError(w, r, err)
+		}
+		return
+	}
+
+	if err := app.jsonResponse(w, http.StatusOK, nil); err != nil {
+		app.internalServerError(w, r, err)
+	}
+}

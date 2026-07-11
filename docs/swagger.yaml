@@ -1,5 +1,37 @@
 basePath: /v1
 definitions:
+  main.RegisterRequest:
+    properties:
+      email:
+        maxLength: 255
+        type: string
+      password:
+        maxLength: 72
+        minLength: 3
+        type: string
+      username:
+        maxLength: 255
+        type: string
+    required:
+    - email
+    - password
+    - username
+    type: object
+  main.UserWithToken:
+    properties:
+      created_at:
+        type: string
+      email:
+        type: string
+      id:
+        type: integer
+      token:
+        type: string
+      updated_at:
+        type: string
+      username:
+        type: string
+    type: object
   main.postRequest:
     properties:
       content:
@@ -126,6 +158,38 @@ info:
   title: Social API
   version: 1.0.0
 paths:
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Create a new user account with username, email, and password. An
+        invitation token is generated for email verification.
+      parameters:
+      - description: User registration details
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/main.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/main.UserWithToken'
+        "400":
+          description: Bad Request
+          schema: {}
+        "409":
+          description: Conflict
+          schema: {}
+        "500":
+          description: Internal Server Error
+          schema: {}
+      summary: Register a new user
+      tags:
+      - auth
   /health:
     get:
       description: Check if the API is running
@@ -333,6 +397,33 @@ paths:
       summary: Unfollow a user
       tags:
       - users
+  /users/activate/{token}:
+    put:
+      description: Activate a user account using the invitation token received via
+        email
+      parameters:
+      - description: Invitation token
+        in: path
+        name: token
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema: {}
+        "500":
+          description: Internal Server Error
+          schema: {}
+      summary: Activate user account
+      tags:
+      - auth
   /users/feeds:
     get:
       description: Get a paginated feed of posts from users you follow

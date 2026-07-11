@@ -1,7 +1,6 @@
 package main
 
 import (
-	"log"
 	"net/http"
 	"time"
 
@@ -10,17 +9,24 @@ import (
 	"github.com/huynguyen1310/social/docs"
 	"github.com/huynguyen1310/social/internal/store"
 	httpSwagger "github.com/swaggo/http-swagger"
+	"go.uber.org/zap"
 )
 
 type application struct {
 	config config
 	store  store.Storage
+	logger *zap.SugaredLogger
 }
 
 type config struct {
 	addr   string
 	db     dbConfig
 	apiURL string
+	mail   mailConfig
+}
+
+type mailConfig struct {
+	exp time.Duration
 }
 
 type dbConfig struct {
@@ -66,6 +72,8 @@ func (app *application) mount() http.Handler {
 				r.Get("/feeds", app.getUserFeedHandler)
 			})
 
+			r.Put("/activate/{token}", app.activateUserHandler)
+
 			r.Route("/{userID}", func(r chi.Router) {
 				r.Use(app.userContextMiddleware)
 
@@ -73,6 +81,10 @@ func (app *application) mount() http.Handler {
 				r.Put("/follow", app.followUserHandler)
 				r.Put("/unfollow", app.unfollowUserHandler)
 			})
+		})
+
+		r.Route("/auth", func(r chi.Router) {
+			r.Post("/register", app.registerUserHandler)
 		})
 	})
 
@@ -94,7 +106,7 @@ func (app *application) serve(mux http.Handler) error {
 		IdleTimeout:  time.Minute,
 	}
 
-	log.Printf("listening on %s", app.config.addr)
+	app.logger.Infof("listening on %s", app.config.addr)
 
 	return server.ListenAndServe()
 }
