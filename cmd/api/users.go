@@ -22,20 +22,10 @@ import (
 //	@Failure		400		{object}	error
 //	@Failure		404		{object}	error
 //	@Failure		500		{object}	error
+//	@Security		ApiKeyAuth
 //	@Router			/users/{userID} [get]
 func (app *application) getUserHandler(w http.ResponseWriter, r *http.Request) {
-	userID := app.getUserFromCtx(r).ID
-
-	user, err := app.store.Users.Get(r.Context(), userID)
-	if err != nil {
-		switch {
-		case errors.Is(err, store.ErrNotFound):
-			app.badRequestError(w, r, err)
-		default:
-			app.internalServerError(w, r, err)
-		}
-		return
-	}
+	user := r.Context().Value("user").(*store.User)
 
 	if err := app.jsonResponse(w, http.StatusOK, user); err != nil {
 		app.internalServerError(w, r, err)
@@ -53,12 +43,17 @@ func (app *application) getUserHandler(w http.ResponseWriter, r *http.Request) {
 //	@Success		200		{object}	map[string]interface{}
 //	@Failure		409		{object}	error
 //	@Failure		500		{object}	error
+//	@Security		ApiKeyAuth
 //	@Router			/users/{userID}/follow [put]
 func (app *application) followUserHandler(w http.ResponseWriter, r *http.Request) {
-	followerID := app.getUserFromCtx(r).ID
-	userID := int64(13)
+	followerID := app.getAuthUserFromCtx(r).ID
+	followedID, err := strconv.ParseInt(chi.URLParam(r, "userID"), 10, 64)
+	if err != nil {
+		app.internalServerError(w, r, err)
+		return
+	}
 
-	if err := app.store.Followers.Follow(r.Context(), followerID, userID); err != nil {
+	if err := app.store.Followers.Follow(r.Context(), followerID, followedID); err != nil {
 		switch {
 		case errors.Is(err, store.ErrConflict):
 			app.conflictError(w, r, err)
@@ -84,12 +79,17 @@ func (app *application) followUserHandler(w http.ResponseWriter, r *http.Request
 //	@Success		200		{object}	map[string]interface{}
 //	@Failure		404		{object}	error
 //	@Failure		500		{object}	error
+//	@Security		ApiKeyAuth
 //	@Router			/users/{userID}/unfollow [put]
 func (app *application) unfollowUserHandler(w http.ResponseWriter, r *http.Request) {
-	followerID := app.getUserFromCtx(r).ID
-	userID := int64(13)
+	followerID := app.getAuthUserFromCtx(r).ID
+	followedID, err := strconv.ParseInt(chi.URLParam(r, "userID"), 10, 64)
+	if err != nil {
+		app.internalServerError(w, r, err)
+		return
+	}
 
-	if err := app.store.Followers.Unfollow(r.Context(), followerID, userID); err != nil {
+	if err := app.store.Followers.Unfollow(r.Context(), followerID, followedID); err != nil {
 		app.internalServerError(w, r, err)
 		return
 	}
@@ -127,7 +127,7 @@ func (app *application) userContextMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func (app *application) getUserFromCtx(r *http.Request) *store.User {
-	user, _ := r.Context().Value("user").(*store.User)
+func (app *application) getAuthUserFromCtx(r *http.Request) *store.User {
+	user, _ := r.Context().Value("auth_user").(*store.User)
 	return user
 }

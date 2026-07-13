@@ -37,15 +37,36 @@ func Seed(store store.Storage) error {
 }
 
 func generateUsers(n int) []*store.User {
-	users := make([]*store.User, n)
-	for i := range users {
+	users := make([]*store.User, n+2)
+	for i := 0; i < n; i++ {
 		user := &store.User{
-			Username: fmt.Sprintf("user%d", i+1),
-			Email:    fmt.Sprintf("user%d@example.com", i+1),
+			Username:   fmt.Sprintf("user%d", i+1),
+			Email:      fmt.Sprintf("user%d@example.com", i+1),
+			RoleID:     1,
+			IsActivate: true,
 		}
 		user.Password.Set("password")
 		users[i] = user
 	}
+
+	// Add moderator user
+	users[n] = &store.User{
+		Username:   "moderator",
+		Email:      "moderator@example.com",
+		RoleID:     2,
+		IsActivate: true,
+	}
+	users[n].Password.Set("password")
+
+	// Add admin user
+	users[n+1] = &store.User{
+		Username:   "admin",
+		Email:      "admin@example.com",
+		RoleID:     3,
+		IsActivate: true,
+	}
+	users[n+1].Password.Set("password")
+
 	return users
 }
 

@@ -4,6 +4,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/huynguyen1310/social/internal/auth"
 	"github.com/huynguyen1310/social/internal/db"
 	"github.com/huynguyen1310/social/internal/env"
 	"github.com/huynguyen1310/social/internal/mailer"
@@ -53,6 +54,17 @@ func main() {
 			smtpHost:  env.GetString("MAIL_SMTP_HOST", "localhost"),
 			smtpPort:  env.GetInt("MAIL_SMTP_PORT", 1025),
 		},
+		auth: authConfig{
+			basic: basicAuthConfig{
+				username: env.GetString("AUTH_BASIC_USERNAME", ""),
+				password: env.GetString("AUTH_BASIC_PASSWORD", ""),
+			},
+			jwt: jwtAuthConfig{
+				secret: env.GetString("AUTH_JWT_SECRET", ""),
+				aud:    env.GetString("AUTH_JWT_AUD", ""),
+				iss:    env.GetString("AUTH_JWT_ISS", ""),
+			},
+		},
 	}
 
 	logger := zap.Must(zap.NewProduction()).Sugar()
@@ -75,11 +87,21 @@ func main() {
 		logger.Fatal("failed to create mailer")
 	}
 
+	jwtAuthenticator := auth.NewJWTAuthenticator(
+		config.auth.jwt.secret,
+		config.auth.jwt.aud,
+		config.auth.jwt.iss,
+	)
+	if jwtAuthenticator == nil {
+		logger.Fatal("failed to create JWT authenticator")
+	}
+
 	app := &application{
-		config: config,
-		store:  store,
-		logger: logger,
-		mailer: mailer,
+		config:        config,
+		store:         store,
+		logger:        logger,
+		mailer:        mailer,
+		authenticator: jwtAuthenticator,
 	}
 
 	defer db.Close()

@@ -22,6 +22,7 @@ import (
 //	@Success		200		{array}		store.PostWithMetadata
 //	@Failure		400		{object}	error
 //	@Failure		500		{object}	error
+//	@Security		ApiKeyAuth
 //	@Router			/users/feeds [get]
 func (app *application) getUserFeedHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

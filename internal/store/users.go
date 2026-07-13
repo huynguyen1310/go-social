@@ -17,13 +17,15 @@ var (
 )
 
 type User struct {
-	ID          int64    `json:"id"`
-	Username    string   `json:"username"`
-	Email       string   `json:"email"`
-	Password    password `json:"-"`
-	is_activate bool
-	CreatedAt   string `json:"created_at"`
-	UpdatedAt   string `json:"updated_at"`
+	ID         int64    `json:"id"`
+	Username   string   `json:"username"`
+	Email      string   `json:"email"`
+	Password   password `json:"-"`
+	IsActivate bool     `json:"-"`
+	RoleID     int      `json:"role_id"`
+	Role       *Role    `json:"role"`
+	CreatedAt  string   `json:"created_at"`
+	UpdatedAt  string   `json:"updated_at"`
 }
 
 type password struct {
@@ -47,19 +49,38 @@ func (p *password) Set(text string) error {
 }
 
 func (s *UserStore) Create(ctx context.Context, tx *sql.Tx, user *User) error {
-	query := `INSERT INTO users (username, email, password) VALUES ($1, $2, $3) RETURNING id, created_at, updated_at`
+	query := `INSERT INTO users (username, email, password, role_id, is_activate) VALUES ($1, $2, $3, $4, $5) RETURNING id, created_at, updated_at`
 
-	err := tx.QueryRowContext(
-		ctx,
-		query,
-		user.Username,
-		user.Email,
-		user.Password.hash,
-	).Scan(
-		&user.ID,
-		&user.CreatedAt,
-		&user.UpdatedAt,
-	)
+	var err error
+	if tx != nil {
+		err = tx.QueryRowContext(
+			ctx,
+			query,
+			user.Username,
+			user.Email,
+			user.Password.hash,
+			user.RoleID,
+			user.IsActivate,
+		).Scan(
+			&user.ID,
+			&user.CreatedAt,
+			&user.UpdatedAt,
+		)
+	} else {
+		err = s.db.QueryRowContext(
+			ctx,
+			query,
+			user.Username,
+			user.Email,
+			user.Password.hash,
+			user.RoleID,
+			user.IsActivate,
+		).Scan(
+			&user.ID,
+			&user.CreatedAt,
+			&user.UpdatedAt,
+		)
+	}
 
 	if err != nil {
 		switch {
@@ -76,12 +97,18 @@ func (s *UserStore) Create(ctx context.Context, tx *sql.Tx, user *User) error {
 }
 
 func (s *UserStore) Get(ctx context.Context, id int64) (*User, error) {
-	query := `SELECT id, username, email, created_at, updated_at FROM users WHERE id = $1`
+	query := `
+		SELECT u.id, u.username, u.email, u.created_at, u.updated_at,
+			r.id, r.name, r.level, r.description
+		FROM users u
+		JOIN roles r ON u.role_id = r.id
+		WHERE u.id = $1 AND u.is_activate = true`
 
 	ctx, cancel := context.WithTimeout(ctx, QueryTimeoutDuration)
 	defer cancel()
 
 	var user User
+	user.Role = &Role{}
 	err := s.db.QueryRowContext(
 		ctx,
 		query,
@@ -92,6 +119,52 @@ func (s *UserStore) Get(ctx context.Context, id int64) (*User, error) {
 		&user.Email,
 		&user.CreatedAt,
 		&user.UpdatedAt,
+		&user.Role.ID,
+		&user.Role.Name,
+		&user.Role.Level,
+		&user.Role.Description,
+	)
+
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return nil, ErrNotFound
+		default:
+			return nil, err
+		}
+	}
+
+	return &user, nil
+}
+
+func (s *UserStore) GetByEmail(ctx context.Context, email string) (*User, error) {
+	query := `
+		SELECT u.id, u.username, u.email, u.password, u.created_at, u.updated_at,
+			r.id, r.name, r.level, r.description
+		FROM users u
+		JOIN roles r ON u.role_id = r.id
+		WHERE u.email = $1 AND u.is_activate = true`
+
+	ctx, cancel := context.WithTimeout(ctx, QueryTimeoutDuration)
+	defer cancel()
+
+	var user User
+	user.Role = &Role{}
+	err := s.db.QueryRowContext(
+		ctx,
+		query,
+		email,
+	).Scan(
+		&user.ID,
+		&user.Username,
+		&user.Email,
+		&user.Password.hash,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+		&user.Role.ID,
+		&user.Role.Name,
+		&user.Role.Level,
+		&user.Role.Description,
 	)
 
 	if err != nil {
@@ -155,7 +228,7 @@ func (s *UserStore) getUserFromInvitation(ctx context.Context, tx *sql.Tx, token
 		&user.Email,
 		&user.CreatedAt,
 		&user.UpdatedAt,
-		&user.is_activate,
+		&user.IsActivate,
 	); err != nil {
 		switch err {
 		case sql.ErrNoRows:
@@ -174,7 +247,7 @@ func (s *UserStore) update(ctx context.Context, tx *sql.Tx, user *User) error {
 	ctx, cancel := context.WithTimeout(ctx, QueryTimeoutDuration)
 	defer cancel()
 
-	if _, err := tx.ExecContext(ctx, query, user.Username, user.Email, user.is_activate, user.ID); err != nil {
+	if _, err := tx.ExecContext(ctx, query, user.Username, user.Email, user.IsActivate, user.ID); err != nil {
 		return err
 	}
 
@@ -202,7 +275,7 @@ func (s *UserStore) Activate(ctx context.Context, token string) error {
 			return err
 		}
 
-		user.is_activate = true
+		user.IsActivate = true
 		if err := s.update(ctx, tx, user); err != nil {
 			return err
 		}

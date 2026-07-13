@@ -1,5 +1,18 @@
 basePath: /v1
 definitions:
+  main.CreateTokenRequest:
+    properties:
+      email:
+        maxLength: 255
+        type: string
+      password:
+        maxLength: 72
+        minLength: 3
+        type: string
+    required:
+    - email
+    - password
+    type: object
   main.RegisterRequest:
     properties:
       email:
@@ -24,6 +37,10 @@ definitions:
       email:
         type: string
       id:
+        type: integer
+      role:
+        $ref: '#/definitions/store.Role'
+      role_id:
         type: integer
       token:
         type: string
@@ -132,6 +149,19 @@ definitions:
       version:
         type: integer
     type: object
+  store.Role:
+    properties:
+      description:
+        type: string
+      id:
+        format: int64
+        type: integer
+      level:
+        format: int64
+        type: integer
+      name:
+        type: string
+    type: object
   store.User:
     properties:
       created_at:
@@ -139,6 +169,10 @@ definitions:
       email:
         type: string
       id:
+        type: integer
+      role:
+        $ref: '#/definitions/store.Role'
+      role_id:
         type: integer
       updated_at:
         type: string
@@ -190,6 +224,39 @@ paths:
       summary: Register a new user
       tags:
       - auth
+  /auth/token:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate with email and password, returns a signed JWT token
+        for subsequent requests
+      parameters:
+      - description: Login credentials
+        in: body
+        name: credentials
+        required: true
+        schema:
+          $ref: '#/definitions/main.CreateTokenRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema: {}
+        "401":
+          description: Unauthorized
+          schema: {}
+        "500":
+          description: Internal Server Error
+          schema: {}
+      summary: Create a new JWT token
+      tags:
+      - auth
   /health:
     get:
       description: Check if the API is running
@@ -230,6 +297,8 @@ paths:
         "500":
           description: Internal Server Error
           schema: {}
+      security:
+      - ApiKeyAuth: []
       summary: Create a post
       tags:
       - posts
@@ -253,6 +322,8 @@ paths:
         "500":
           description: Internal Server Error
           schema: {}
+      security:
+      - ApiKeyAuth: []
       summary: Delete a post
       tags:
       - posts
@@ -312,6 +383,8 @@ paths:
         "500":
           description: Internal Server Error
           schema: {}
+      security:
+      - ApiKeyAuth: []
       summary: Update a post
       tags:
       - posts
@@ -342,6 +415,8 @@ paths:
         "500":
           description: Internal Server Error
           schema: {}
+      security:
+      - ApiKeyAuth: []
       summary: Get user by ID
       tags:
       - users
@@ -368,6 +443,8 @@ paths:
         "500":
           description: Internal Server Error
           schema: {}
+      security:
+      - ApiKeyAuth: []
       summary: Follow a user
       tags:
       - users
@@ -394,6 +471,8 @@ paths:
         "500":
           description: Internal Server Error
           schema: {}
+      security:
+      - ApiKeyAuth: []
       summary: Unfollow a user
       tags:
       - users
@@ -474,6 +553,8 @@ paths:
         "500":
           description: Internal Server Error
           schema: {}
+      security:
+      - ApiKeyAuth: []
       summary: Get user feed
       tags:
       - feed

@@ -32,3 +32,20 @@ func (app *application) badRequestResponse(w http.ResponseWriter, r *http.Reques
 	app.logger.Errorf("bad request error: %s path: %s error: %s", r.Method, r.URL.Path, err.Error())
 	writeJSONError(w, http.StatusBadRequest, err.Error())
 }
+
+func (app *application) unauthorizedBasicError(w http.ResponseWriter, r *http.Request, err error) {
+	app.logger.Errorf("unauthorized basic error: %s path: %s error: %s", r.Method, r.URL.Path, err.Error())
+
+	w.Header().Set("WWW-Authenticate", `Basic realm="restricted", charset="UTF-8"`)
+	writeJSONError(w, http.StatusUnauthorized, err.Error())
+}
+
+func (app *application) unauthorizedErrorResponse(w http.ResponseWriter, r *http.Request, err error) {
+	app.logger.Errorf("unauthorized error: %s path: %s error: %s", r.Method, r.URL.Path, err.Error())
+	writeJSONError(w, http.StatusUnauthorized, err.Error())
+}
+
+func (app *application) forbiddenErrorResponse(w http.ResponseWriter, r *http.Request, err error) {
+	app.logger.Errorf("forbidden error: %s path: %s error: %s", r.Method, r.URL.Path, err.Error())
+	writeJSONError(w, http.StatusForbidden, err.Error())
+}
