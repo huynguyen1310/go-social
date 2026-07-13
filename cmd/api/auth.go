@@ -3,10 +3,12 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/huynguyen1310/social/internal/mailer"
 	"github.com/huynguyen1310/social/internal/store"
 )
 
@@ -74,6 +76,18 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	// Send activation email asynchronously
+	activationLink := fmt.Sprintf("http://%s/v1/users/activate/%s", app.config.apiURL, plainToken)
+	go func() {
+		data := mailer.ActivationData{
+			Username:       user.Username,
+			ActivationLink: activationLink,
+		}
+		if err := app.mailer.Send(mailer.ActivationTemplate, user.Username, user.Email, data); err != nil {
+			app.logger.Errorw("failed to send activation email", "error", err, "email", user.Email)
+		}
+	}()
+
 	userWithToken := UserWithToken{
 		User:  &user,
 		Token: plainToken,
@@ -89,12 +103,13 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 //	@Summary		Activate user account
 //	@Description	Activate a user account using the invitation token received via email
 //	@Tags			auth
-//	@Produce		json
-//	@Param			token	path		string	true	"Invitation token"
-//	@Success		200		{object}	map[string]interface{}
-//	@Failure		404		{object}	error
-//	@Failure		500		{object}	error
-//	@Router			/users/activate/{token} [put]
+//	@Produce		html
+//	@Param			token	path	string	true	"Invitation token"
+//	@Success		200		"HTML page"
+//	@Failure		404		"HTML error page"
+//	@Failure		500		"HTML error page"
+//
+//	@Router			/users/activate/{token} [get]
 func (app *application) activateUserHandler(w http.ResponseWriter, r *http.Request) {
 	token := chi.URLParam(r, "token")
 
@@ -102,14 +117,12 @@ func (app *application) activateUserHandler(w http.ResponseWriter, r *http.Reque
 	if err != nil {
 		switch err {
 		case store.ErrNotFound:
-			app.badRequestError(w, r, err)
+			app.renderHTML(w, http.StatusNotFound, "Invalid or expired activation link.")
 		default:
-			app.internalServerError(w, r, err)
+			app.renderHTML(w, http.StatusInternalServerError, "Something went wrong. Please try again.")
 		}
 		return
 	}
 
-	if err := app.jsonResponse(w, http.StatusOK, nil); err != nil {
-		app.internalServerError(w, r, err)
-	}
+	app.renderHTML(w, http.StatusOK, "Your account has been activated! You can now log in.")
 }

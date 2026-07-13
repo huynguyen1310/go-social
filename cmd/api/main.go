@@ -6,6 +6,7 @@ import (
 
 	"github.com/huynguyen1310/social/internal/db"
 	"github.com/huynguyen1310/social/internal/env"
+	"github.com/huynguyen1310/social/internal/mailer"
 	"github.com/huynguyen1310/social/internal/store"
 	"go.uber.org/zap"
 
@@ -47,7 +48,10 @@ func main() {
 			maxIdleTime:  env.GetString("DB_MAX_IDLE_TIME", "15m"),
 		},
 		mail: mailConfig{
-			exp: time.Hour * 24 * 3,
+			exp:       time.Hour * 24 * 3,
+			fromEmail: env.GetString("MAIL_FROM_EMAIL", "social@example.com"),
+			smtpHost:  env.GetString("MAIL_SMTP_HOST", "localhost"),
+			smtpPort:  env.GetInt("MAIL_SMTP_PORT", 1025),
 		},
 	}
 
@@ -66,10 +70,16 @@ func main() {
 
 	store := store.NewStorage(db)
 
+	mailer := mailer.NewMailer(config.mail.smtpHost, config.mail.smtpPort, config.mail.fromEmail)
+	if mailer == nil {
+		logger.Fatal("failed to create mailer")
+	}
+
 	app := &application{
 		config: config,
 		store:  store,
 		logger: logger,
+		mailer: mailer,
 	}
 
 	defer db.Close()

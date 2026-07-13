@@ -256,10 +256,10 @@ const docTemplate = `{
             }
         },
         "/users/activate/{token}": {
-            "put": {
+            "get": {
                 "description": "Activate a user account using the invitation token received via email",
                 "produces": [
-                    "application/json"
+                    "text/html"
                 ],
                 "tags": [
                     "auth"
@@ -276,19 +276,13 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
+                        "description": "HTML page"
                     },
                     "404": {
-                        "description": "Not Found",
-                        "schema": {}
+                        "description": "HTML error page"
                     },
                     "500": {
-                        "description": "Internal Server Error",
-                        "schema": {}
+                        "description": "HTML error page"
                     }
                 }
             }

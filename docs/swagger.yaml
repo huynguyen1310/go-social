@@ -398,7 +398,7 @@ paths:
       tags:
       - users
   /users/activate/{token}:
-    put:
+    get:
       description: Activate a user account using the invitation token received via
         email
       parameters:
@@ -408,19 +408,14 @@ paths:
         required: true
         type: string
       produces:
-      - application/json
+      - text/html
       responses:
         "200":
-          description: OK
-          schema:
-            additionalProperties: true
-            type: object
+          description: HTML page
         "404":
-          description: Not Found
-          schema: {}
+          description: HTML error page
         "500":
-          description: Internal Server Error
-          schema: {}
+          description: HTML error page
       summary: Activate user account
       tags:
       - auth
