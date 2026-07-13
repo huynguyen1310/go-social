@@ -2,18 +2,29 @@ package db
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log"
 
 	"github.com/huynguyen1310/social/internal/store"
 )
 
-func Seed(store store.Storage) error {
+func Seed(store store.Storage, db *sql.DB) error {
 	ctx := context.Background()
 
 	users := generateUsers(100)
 	for _, user := range users {
-		if err := store.Users.Create(ctx, nil, user); err != nil {
+		tx, err := db.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+
+		if err := store.Users.Create(ctx, tx, user); err != nil {
+			_ = tx.Rollback()
+			return err
+		}
+
+		if err := tx.Commit(); err != nil {
 			return err
 		}
 	}

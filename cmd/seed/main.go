@@ -18,7 +18,7 @@ func main() {
 	defer conn.Close()
 
 	store := store.NewStorage(conn)
-	if err := db.Seed(store); err != nil {
+	if err := db.Seed(store, conn); err != nil {
 		log.Fatal(err)
 	}
 }

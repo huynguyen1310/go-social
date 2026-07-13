@@ -49,44 +49,25 @@ func (p *password) Set(text string) error {
 }
 
 func (s *UserStore) Create(ctx context.Context, tx *sql.Tx, user *User) error {
-	query := `INSERT INTO users (username, email, password, role_id, is_activate) VALUES ($1, $2, $3, $4, $5) RETURNING id, created_at, updated_at`
-
-	var err error
-	if tx != nil {
-		err = tx.QueryRowContext(
-			ctx,
-			query,
-			user.Username,
-			user.Email,
-			user.Password.hash,
-			user.RoleID,
-			user.IsActivate,
-		).Scan(
-			&user.ID,
-			&user.CreatedAt,
-			&user.UpdatedAt,
-		)
-	} else {
-		err = s.db.QueryRowContext(
-			ctx,
-			query,
-			user.Username,
-			user.Email,
-			user.Password.hash,
-			user.RoleID,
-			user.IsActivate,
-		).Scan(
-			&user.ID,
-			&user.CreatedAt,
-			&user.UpdatedAt,
-		)
+	// Set defaults
+	if user.RoleID == 0 {
+		user.RoleID = 1
 	}
+
+	query := `INSERT INTO users (username, email, password, role_id, is_activate) VALUES ($1, $2, $3, $4, $5) RETURNING id, created_at, updated_at`
+	args := []any{user.Username, user.Email, user.Password.hash, user.RoleID, user.IsActivate}
+
+	err := tx.QueryRowContext(ctx, query, args...).Scan(
+		&user.ID,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
 
 	if err != nil {
 		switch {
-		case err.Error() == `pg: duplicate key value violates unique constraint "users_email_key"`:
+		case err.Error() == `pq: duplicate key value violates unique constraint "users_email_key"`:
 			return ErrDuplicateEmail
-		case err.Error() == `pg: duplicate key value violates unique constraint "users_username_key"`:
+		case err.Error() == `pq: duplicate key value violates unique constraint "users_username_key"`:
 			return ErrDuplicateUsername
 		default:
 			return err
