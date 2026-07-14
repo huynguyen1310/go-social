@@ -20,5 +20,15 @@ services:
       - "1025:1025"   # SMTP server
       - "8025:8025"   # Web UI
 
+  redis:
+    image: redis:7-alpine
+    container_name: social-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+
 volumes:
   postgres_data:
+  redis_data:

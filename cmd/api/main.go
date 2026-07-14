@@ -9,6 +9,8 @@ import (
 	"github.com/huynguyen1310/social/internal/env"
 	"github.com/huynguyen1310/social/internal/mailer"
 	"github.com/huynguyen1310/social/internal/store"
+	"github.com/huynguyen1310/social/internal/store/cache"
+	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
 	"github.com/joho/godotenv"
@@ -65,6 +67,12 @@ func main() {
 				iss:    env.GetString("AUTH_JWT_ISS", ""),
 			},
 		},
+		cache: cacheConfig{
+			addr:     env.GetString("REDIS_ADDR", "localhost:6379"),
+			password: env.GetString("REDIS_PASSWORD", ""),
+			db:       env.GetInt("REDIS_DB", 0),
+			enabled:  env.GetBool("REDIS_ENABLED", true),
+		},
 	}
 
 	logger := zap.Must(zap.NewProduction()).Sugar()
@@ -96,12 +104,25 @@ func main() {
 		logger.Fatal("failed to create JWT authenticator")
 	}
 
+	var rdb *redis.Client
+	if config.cache.enabled {
+		rdb = cache.NewRedisClient(
+			config.cache.addr,
+			config.cache.password,
+			config.cache.db,
+		)
+		logger.Info("cache connect established")
+	}
+
+	cacheStore := cache.NewRedisStore(rdb)
+
 	app := &application{
 		config:        config,
 		store:         store,
 		logger:        logger,
 		mailer:        mailer,
 		authenticator: jwtAuthenticator,
+		cache:         *cacheStore,
 	}
 
 	defer db.Close()

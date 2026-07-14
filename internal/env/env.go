@@ -39,3 +39,16 @@ func GetDuration(key string, fallback time.Duration) time.Duration {
 	}
 	return d
 }
+
+func GetBool(key string, fallback bool) bool {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	b, err := strconv.ParseBool(v)
+	if err != nil {
+		log.Printf("warning: invalid %q=%q, using default %t", key, v, fallback)
+		return fallback
+	}
+	return b
+}

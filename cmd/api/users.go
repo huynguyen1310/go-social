@@ -109,7 +109,7 @@ func (app *application) userContextMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		user, err := app.store.Users.Get(ctx, userID)
+		user, err := app.getUser(ctx, userID)
 		if err != nil {
 			switch {
 			case errors.Is(err, store.ErrNotFound):

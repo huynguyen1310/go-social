@@ -10,6 +10,7 @@ import (
 	"github.com/huynguyen1310/social/internal/auth"
 	"github.com/huynguyen1310/social/internal/mailer"
 	"github.com/huynguyen1310/social/internal/store"
+	"github.com/huynguyen1310/social/internal/store/cache"
 	httpSwagger "github.com/swaggo/http-swagger"
 	"go.uber.org/zap"
 )
@@ -20,6 +21,7 @@ type application struct {
 	logger        *zap.SugaredLogger
 	mailer        mailer.Client
 	authenticator auth.Authenticator
+	cache         cache.Store
 }
 
 type config struct {
@@ -28,6 +30,14 @@ type config struct {
 	apiURL string
 	mail   mailConfig
 	auth   authConfig
+	cache  cacheConfig
+}
+
+type cacheConfig struct {
+	addr     string
+	password string
+	db       int
+	enabled  bool
 }
 
 type authConfig struct {

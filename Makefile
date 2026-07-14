@@ -4,7 +4,7 @@ export
 MIGRATIONS_PATH=cmd/migrate/migrations
 
 .PHONY: migrate-create migrate-up migrate-down migrate-force migrate-version \
-        migrate-drop migrate-fresh migrate-refresh migrate-status seed
+        migrate-drop migrate-fresh migrate-refresh migrate-status seed test
 
 ## Like `artisan make:migration`
 migrate-create:
@@ -48,6 +48,11 @@ seed:
 # allows passing extra args like: make migrate-down 2
 %:
 	@:
+
+## Run tests
+## Usage: make test [ARGS="-v -run TestName"]
+test:
+	@go test $(ARGS) ./...
 
 gen-docs:
 	@swag init -g ./api/main.go -d cmd,internal && swag fmt
