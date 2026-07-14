@@ -1,7 +1,13 @@
 package main
 
 import (
+	"context"
+	"database/sql"
+	"errors"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -11,6 +17,7 @@ import (
 	"github.com/huynguyen1310/social/internal/mailer"
 	"github.com/huynguyen1310/social/internal/store"
 	"github.com/huynguyen1310/social/internal/store/cache"
+	"github.com/redis/go-redis/v9"
 	httpSwagger "github.com/swaggo/http-swagger"
 	"go.uber.org/zap"
 )
@@ -22,6 +29,8 @@ type application struct {
 	mailer        mailer.Client
 	authenticator auth.Authenticator
 	cache         cache.Store
+	db            *sql.DB
+	rdb           *redis.Client
 }
 
 type config struct {
@@ -144,7 +153,44 @@ func (app *application) serve(mux http.Handler) error {
 		IdleTimeout:  time.Minute,
 	}
 
+	shutdown := make(chan error, 1)
+	go func() {
+		quit := make(chan os.Signal, 1)
+
+		signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+		s := <-quit
+
+		app.logger.Infow("signal caught", "signal", s.String())
+
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		shutdown <- server.Shutdown(ctx)
+	}()
+
 	app.logger.Infof("listening on %s", app.config.addr)
 
-	return server.ListenAndServe()
+	err := server.ListenAndServe()
+	if !errors.Is(err, http.ErrServerClosed) {
+		return err
+	}
+
+	if err := <-shutdown; err != nil {
+		return err
+	}
+
+	// Cleanup resources
+	if app.db != nil {
+		if err := app.db.Close(); err != nil {
+			app.logger.Errorf("db close failed: %v", err)
+		}
+	}
+	if app.rdb != nil {
+		if err := app.rdb.Close(); err != nil {
+			app.logger.Errorf("redis close failed: %v", err)
+		}
+	}
+
+	app.logger.Info("server stopped gracefully")
+	return nil
 }

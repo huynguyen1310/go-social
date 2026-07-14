@@ -123,11 +123,15 @@ func main() {
 		mailer:        mailer,
 		authenticator: jwtAuthenticator,
 		cache:         *cacheStore,
+		db:            db,
+		rdb:           rdb,
 	}
 
-	defer db.Close()
 	logger.Info("DB connect established")
 
 	mux := app.mount()
-	logger.Fatal(app.serve(mux))
+
+	if err := app.serve(mux); err != nil {
+		logger.Fatal(err)
+	}
 }
