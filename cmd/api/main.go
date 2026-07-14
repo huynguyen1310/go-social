@@ -8,6 +8,7 @@ import (
 	"github.com/huynguyen1310/social/internal/db"
 	"github.com/huynguyen1310/social/internal/env"
 	"github.com/huynguyen1310/social/internal/mailer"
+	ratelimiter "github.com/huynguyen1310/social/internal/rateLimiter"
 	"github.com/huynguyen1310/social/internal/store"
 	"github.com/huynguyen1310/social/internal/store/cache"
 	"github.com/redis/go-redis/v9"
@@ -73,6 +74,11 @@ func main() {
 			db:       env.GetInt("REDIS_DB", 0),
 			enabled:  env.GetBool("REDIS_ENABLED", true),
 		},
+		rateLimiter: ratelimiter.Config{
+			RequestsPerTimeFrame: env.GetInt("RATE_LIMIT", 100),
+			TimeFrame:            env.GetDuration("RATE_LIMIT_WINDOW", time.Minute),
+			Enabled:              env.GetBool("RATE_LIMIT_ENABLED", true),
+		},
 	}
 
 	logger := zap.Must(zap.NewProduction()).Sugar()
@@ -116,6 +122,11 @@ func main() {
 
 	cacheStore := cache.NewRedisStore(rdb)
 
+	rateLimiter := ratelimiter.NewFixedWindowRateLimiter(
+		config.rateLimiter.RequestsPerTimeFrame,
+		config.rateLimiter.TimeFrame,
+	)
+
 	app := &application{
 		config:        config,
 		store:         store,
@@ -123,6 +134,7 @@ func main() {
 		mailer:        mailer,
 		authenticator: jwtAuthenticator,
 		cache:         *cacheStore,
+		rateLimiter:   rateLimiter,
 		db:            db,
 		rdb:           rdb,
 	}

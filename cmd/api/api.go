@@ -15,6 +15,7 @@ import (
 	"github.com/huynguyen1310/social/docs"
 	"github.com/huynguyen1310/social/internal/auth"
 	"github.com/huynguyen1310/social/internal/mailer"
+	ratelimiter "github.com/huynguyen1310/social/internal/rateLimiter"
 	"github.com/huynguyen1310/social/internal/store"
 	"github.com/huynguyen1310/social/internal/store/cache"
 	"github.com/redis/go-redis/v9"
@@ -29,17 +30,19 @@ type application struct {
 	mailer        mailer.Client
 	authenticator auth.Authenticator
 	cache         cache.Store
+	rateLimiter   ratelimiter.Limiter
 	db            *sql.DB
 	rdb           *redis.Client
 }
 
 type config struct {
-	addr   string
-	db     dbConfig
-	apiURL string
-	mail   mailConfig
-	auth   authConfig
-	cache  cacheConfig
+	addr        string
+	db          dbConfig
+	apiURL      string
+	mail        mailConfig
+	auth        authConfig
+	cache       cacheConfig
+	rateLimiter ratelimiter.Config
 }
 
 type cacheConfig struct {
@@ -86,6 +89,7 @@ func (app *application) mount() http.Handler {
 	r.Use(middleware.ClientIPFromRemoteAddr)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
+	r.Use(app.rateLimiterMiddleware)
 
 	// Set a timeout value on the request context (ctx), that will signal
 	// through ctx.Done() that the request has timed out and further
