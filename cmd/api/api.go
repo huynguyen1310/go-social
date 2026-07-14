@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"expvar"
 	"net/http"
 	"os"
 	"os/signal"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
 	"github.com/huynguyen1310/social/docs"
 	"github.com/huynguyen1310/social/internal/auth"
 	"github.com/huynguyen1310/social/internal/mailer"
@@ -89,12 +91,52 @@ func (app *application) mount() http.Handler {
 	r.Use(middleware.ClientIPFromRemoteAddr)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
+	r.Use(cors.Handler(cors.Options{
+		AllowedOrigins:   []string{"https://*", "http://*"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
+		ExposedHeaders:   []string{"Link"},
+		AllowCredentials: false,
+		MaxAge:           300,
+	}))
 	r.Use(app.rateLimiterMiddleware)
 
 	// Set a timeout value on the request context (ctx), that will signal
 	// through ctx.Done() that the request has timed out and further
 	// processing should be stopped.
 	r.Use(middleware.Timeout(60 * time.Second))
+
+	// Publish DB pool stats
+	expvar.Publish("db", expvar.Func(func() any {
+		stats := app.db.Stats()
+		return map[string]any{
+			"max_open_connections": stats.MaxOpenConnections,
+			"open_connections":     stats.OpenConnections,
+			"in_use":               stats.InUse,
+			"idle":                 stats.Idle,
+			"wait_count":           stats.WaitCount,
+			"wait_duration_ms":     stats.WaitDuration.Milliseconds(),
+			"max_idle_closed":      stats.MaxIdleClosed,
+			"max_idle_time_closed": stats.MaxIdleTimeClosed,
+			"max_lifetime_closed":  stats.MaxLifetimeClosed,
+		}
+	}))
+
+	// Publish Redis pool stats
+	if app.rdb != nil {
+		expvar.Publish("redis", expvar.Func(func() any {
+			stats := app.rdb.PoolStats()
+			return map[string]any{
+				"hits":        stats.Hits,
+				"misses":      stats.Misses,
+				"timeouts":    stats.Timeouts,
+				"total_conns": stats.TotalConns,
+				"idle_conns":  stats.IdleConns,
+			}
+		}))
+	}
+
+	r.Get("/debug/vars", expvar.Handler().ServeHTTP)
 
 	r.Route("/v1", func(r chi.Router) {
 		r.With(app.BasicAuthMiddleware).Get("/health", app.healthHandler)
